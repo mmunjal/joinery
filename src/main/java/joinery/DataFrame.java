@@ -816,7 +816,14 @@ implements Iterable<List<V>> {
     public final DataFrame<V> concat(final DataFrame<? extends V> ... others) {
         return Combining.concat(this, others);
     }
-
+/** 
+ * Concatenate two dataframes on either join type(INNER or OUTER),
+ * works similar to pandas concatenate 
+ *
+ * @param JoinType  the join type (OUTER or INNER)
+ * @param DataFrames for joining
+ * @return Output DataFrame of joined dataframes with specificed join type
+ */
     @SafeVarargs
     public final DataFrame<V> concat(final JoinType jtype, final DataFrame<? extends V> ... others) {
         return Combining.concat(this, jtype, others);
@@ -1828,7 +1835,15 @@ implements Iterable<List<V>> {
     public DataFrame<V> sortBy(final Comparator<List<V>> comparator) {
         return Sorting.sort(this, comparator);
     }
-    
+
+   /** 
+   * Returning DataFrame with sorted on index, this method called with DataFrame
+   * and it will apply the sorting on index or labels and return the sorted DataFrame
+   *
+   * @param None
+   * 
+   * @return Sorted DataFrame on index
+   */   
     public DataFrame<V> sortByIdx() {
             return Sorting.sortByIdx(this);
     }
