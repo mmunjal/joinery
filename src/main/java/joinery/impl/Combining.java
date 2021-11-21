@@ -33,7 +33,7 @@ import joinery.DataFrame.JoinType;
 import joinery.DataFrame.KeyFunction;
 
 public class Combining {
-    public static <V> DataFrame<V> join(final DataFrame<V> left, final DataFrame<V> right, final JoinType how, final KeyFunction<V> on) {
+    public static <V> DataFrame<V> join(final DataFrame<V> left, final DataFrame<V> right, final JoinType jtype, final KeyFunction<V> on) {
         final Iterator<Object> leftIt = left.index().iterator();
         final Iterator<Object> rightIt = right.index().iterator();
         final Map<Object, List<V>> leftMap = new LinkedHashMap<>();
@@ -55,41 +55,41 @@ public class Combining {
             }
         }
 
-        final List<Object> columns = new ArrayList<>(how != JoinType.RIGHT ? left.columns() : right.columns());
-        for (Object column : how != JoinType.RIGHT ? right.columns() : left.columns()) {
+        final List<Object> columns = new ArrayList<>(jtype != JoinType.RIGHT ? left.columns() : right.columns());
+        for (Object column : jtype != JoinType.RIGHT ? right.columns() : left.columns()) {
             final int index = columns.indexOf(column);
             if (index >= 0) {
                 if (column instanceof List) {
                     @SuppressWarnings("unchecked")
                     final List<Object> l1 = List.class.cast(columns.get(index));
-                    l1.add(how != JoinType.RIGHT ? "left" : "right");
+                    l1.add(jtype != JoinType.RIGHT ? "left" : "right");
                     @SuppressWarnings("unchecked")
                     final List<Object> l2= List.class.cast(column);
-                    l2.add(how != JoinType.RIGHT ? "right" : "left");
+                    l2.add(jtype != JoinType.RIGHT ? "right" : "left");
                 } else {
-                    columns.set(index, String.format("%s_%s", columns.get(index), how != JoinType.RIGHT ? "left" : "right"));
-                    column = String.format("%s_%s", column, how != JoinType.RIGHT ? "right" : "left");
+                    columns.set(index, String.format("%s_%s", columns.get(index), jtype != JoinType.RIGHT ? "left" : "right"));
+                    column = String.format("%s_%s", column, jtype != JoinType.RIGHT ? "right" : "left");
                 }
             }
             columns.add(column);
         }
 
         final DataFrame<V> df = new DataFrame<>(columns);
-        for (final Map.Entry<Object, List<V>> entry : how != JoinType.RIGHT ? leftMap.entrySet() : rightMap.entrySet()) {
+        for (final Map.Entry<Object, List<V>> entry : jtype != JoinType.RIGHT ? leftMap.entrySet() : rightMap.entrySet()) {
             final List<V> tmp = new ArrayList<>(entry.getValue());
-            final List<V> row = how != JoinType.RIGHT ? rightMap.get(entry.getKey()) : leftMap.get(entry.getKey());
-            if (row != null || how != JoinType.INNER) {
+            final List<V> row = jtype != JoinType.RIGHT ? rightMap.get(entry.getKey()) : leftMap.get(entry.getKey());
+            if (row != null || jtype != JoinType.INNER) {
                 tmp.addAll(row != null ? row : Collections.<V>nCopies(right.columns().size(), null));
                 df.append(entry.getKey(), tmp);
             }
         }
 
-        if (how == JoinType.OUTER) {
-            for (final Map.Entry<Object, List<V>> entry : how != JoinType.RIGHT ? rightMap.entrySet() : leftMap.entrySet()) {
-                final List<V> row = how != JoinType.RIGHT ? leftMap.get(entry.getKey()) : rightMap.get(entry.getKey());
+        if (jtype == JoinType.OUTER) {
+            for (final Map.Entry<Object, List<V>> entry : jtype != JoinType.RIGHT ? rightMap.entrySet() : leftMap.entrySet()) {
+                final List<V> row = jtype != JoinType.RIGHT ? leftMap.get(entry.getKey()) : rightMap.get(entry.getKey());
                 if (row == null) {
                     final List<V> tmp = new ArrayList<>(Collections.<V>nCopies(
-                        how != JoinType.RIGHT ? left.columns().size() : right.columns().size(), null));
+                        jtype != JoinType.RIGHT ? left.columns().size() : right.columns().size(), null));
                     tmp.addAll(entry.getValue());
                     df.append(entry.getKey(), tmp);
                 }
@@ -99,8 +99,8 @@ public class Combining {
         return df;
     }
 
-    public static <V> DataFrame<V> joinOn(final DataFrame<V> left, final DataFrame<V> right, final JoinType how, final Integer ... cols) {
-        return join(left, right, how, new KeyFunction<V>() {
+    public static <V> DataFrame<V> joinOn(final DataFrame<V> left, final DataFrame<V> right, final JoinType jtype, final Integer ... cols) {
+        return join(left, right, jtype, new KeyFunction<V>() {
             @Override
             public Object apply(final List<V> value) {
                 final List<V> key = new ArrayList<>(cols.length);
@@ -112,11 +112,11 @@ public class Combining {
         });
     }
 
-    public static <V> DataFrame<V> merge(final DataFrame<V> left, final DataFrame<V> right, final JoinType how) {
+    public static <V> DataFrame<V> merge(final DataFrame<V> left, final DataFrame<V> right, final JoinType jtype) {
         final Set<Object> intersection = new LinkedHashSet<>(left.nonnumeric().columns());
         intersection.retainAll(right.nonnumeric().columns());
         final Object[] columns = intersection.toArray(new Object[intersection.size()]);
-        return join(left.reindex(columns), right.reindex(columns), how, null);
+        return join(left.reindex(columns), right.reindex(columns), jtype, null);
     }
 
     @SafeVarargs
@@ -137,7 +137,7 @@ public class Combining {
             }
         }
     }
-
+    
     @SafeVarargs
     public static <V> DataFrame<V> concat(
             final DataFrame<V> first, final DataFrame<? extends V> ... others) {
@@ -163,6 +163,58 @@ public class Combining {
                 int newc = newcols.indexOf(cols.get(c));
                 for (int r = 0; r < df.length(); r++) {
                     combined.set(offset + r, newc, df.get(r, c));
+                }
+            }
+            offset += df.length();
+        }
+
+        return combined;
+    }
+    
+    @SafeVarargs
+    public static <V> DataFrame<V> concat(
+            final DataFrame<V> first, final JoinType jtype, final DataFrame<? extends V> ... others) {
+	List<DataFrame<? extends V>> dfs = new ArrayList<>(others.length + 1);
+	dfs.add(first);
+	dfs.addAll(Arrays.asList(others));
+        int rows = 0;
+        Set<Object> columns = new LinkedHashSet<>();	    
+        
+        if (jtype == JoinType.OUTER){
+        
+        for (DataFrame<? extends V> df : dfs) {
+            rows += df.length();
+            for (Object c : df.columns()) {
+                columns.add(c);
+            }
+        }
+	}
+	else if (jtype == JoinType.INNER){
+
+
+        columns = new LinkedHashSet<>(first.columns());
+        rows = first.length();
+	for (DataFrame<? extends V> df : others) {
+            rows += df.length();
+            Set<Object> c = new LinkedHashSet<>(df.columns());
+            columns.retainAll(c);
+        }
+	}
+	else {
+		throw new IllegalArgumentException("JoinType can be either OUTER or INNER");	
+	}
+	
+	List<Object> newcols = new ArrayList<>(columns);
+        DataFrame<V> combined = new DataFrame<V>(columns).reshape(rows, columns.size());
+        int offset = 0;
+        for (DataFrame<? extends V> df : dfs) {
+            List<Object> cols = new ArrayList<>(df.columns());
+            for (int c = 0; c < cols.size(); c++) {
+                int newc = newcols.indexOf(cols.get(c));
+                if (newc != -1){
+                    for (int r = 0; r < df.length(); r++) {
+                        combined.set(offset + r, newc, df.get(r, c));
+                    }
                 }
             }
             offset += df.length();

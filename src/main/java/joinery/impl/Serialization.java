@@ -292,7 +292,8 @@ public class Serialization {
 
     public static <V> void writeCsv(final DataFrame<V> df, final String output)
     throws IOException {
-        writeCsv(df, new FileOutputStream(output));
+       writeCsv(df, new FileOutputStream(output));
+       //df.add("labels", df.index()).writeCsv(df, new FileOutputStream(output));
     }
 
     public static <V> void writeCsv(final DataFrame<V> df, final OutputStream output)
